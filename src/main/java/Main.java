@@ -11,15 +11,24 @@ import java.io.File;
  */
 public class Main {
 
+    /**
+     * Default logger.
+     */
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
     /**
-     * word2vec configuration
+     * word2vec configuration (not just CBOW/SG but contains also all other parameters)
      */
-    private Word2VecConfiguration configuration = Word2VecConfiguration.CBOW;
+    private static Word2VecConfiguration configuration = Word2VecConfiguration.CBOW;
 
+    /**
+     * File for leightweight generation
+     */
     private static File lightEntityFile = null;
 
+    /**
+     * File to the knowledge graph
+     */
     private static File knowledgeGraphFile = null;
 
     /**
@@ -117,7 +126,14 @@ public class Main {
             }
         }
 
-        Word2VecConfiguration configuration = Word2VecConfiguration.CBOW;
+        // determining the configuration for the rdf2vec training
+        String trainingModeText = getValue("-trainingMode", args);
+        trainingModeText = (trainingModeText == null) ? getValue("-trainMode", args) : trainingModeText;
+        if(trainingModeText != null){
+            if(trainingModeText.equalsIgnoreCase("sg")){
+                configuration = Word2VecConfiguration.SG;
+            } else configuration = Word2VecConfiguration.CBOW;
+        } else configuration = Word2VecConfiguration.CBOW;
 
         // setting training threads
         if(threads > 0) configuration.setNumberOfThreads(threads);
@@ -126,9 +142,9 @@ public class Main {
         if(dimensions > 0) configuration.setVectorDimension(dimensions);
 
 
-
-
-        // actual execution
+        // ------------------
+        //  actual execution
+        // ------------------
 
         if(lightEntityFile == null){
             // TODO run classic
@@ -150,7 +166,6 @@ public class Main {
             rdf2VecLight.train();
             System.out.println("Training completed.");
         }
-
     }
 
 

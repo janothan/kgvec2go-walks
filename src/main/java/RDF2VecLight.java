@@ -102,7 +102,7 @@ public class RDF2VecLight {
         Gensim gensim = Gensim.getInstance();
         String fileToWrite = this.getWalkFileDirectoryPath() + "model.kv";
         gensim.trainWord2VecModel(fileToWrite, getWalkFilePath(), this.configuration);
-        gensim.writeModelAsTextFile(fileToWrite,fileToWrite.substring(0, fileToWrite.length() -3) + ".txt");
+        gensim.writeModelAsTextFile(fileToWrite,fileToWrite.substring(0, fileToWrite.length() -3) + ".txt", entitiesFile.getAbsolutePath());
     }
 
 
