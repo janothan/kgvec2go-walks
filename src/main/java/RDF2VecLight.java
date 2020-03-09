@@ -63,6 +63,7 @@ public class RDF2VecLight {
         this(knowledgeGraphFile, entitiesFile, null);
     }
 
+
     /**
      * Constructor
      * @param knowledgeGraphFile File to the knowledge graph.
