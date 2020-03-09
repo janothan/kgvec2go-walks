@@ -33,6 +33,16 @@ public class Main {
     private static int dimensions = -1;
 
     /**
+     * Depth for the walks to be generated.
+     */
+    private static int depth = -1;
+
+    /**
+     * The number of walks to be generated for each node.
+     */
+    private static int numberOfWalks = -1;
+
+    /**
      * Where the walks will be persisted (directory).
      */
     private static File walkDirectory = null;
@@ -88,12 +98,32 @@ public class Main {
             }
         }
 
+        String depthText = getValue("-depth", args);
+        if(depthText != null){
+            try {
+                depth = Integer.parseInt(depthText);
+            } catch (NumberFormatException nfe){
+                System.out.println("Could not parse the depth. Using default.");
+            }
+        }
+
+        String numberOfWalksText = getValue("-numberOfWalks", args);
+        numberOfWalksText = (numberOfWalksText == null) ? getValue("-numOfWalks", args) : numberOfWalksText;
+        if(numberOfWalksText != null){
+            try {
+                numberOfWalks = Integer.parseInt(numberOfWalksText);
+            } catch (NumberFormatException nfe){
+                System.out.println("Could not parse the number of walks. Using default.");
+            }
+        }
+
         Word2VecConfiguration configuration = Word2VecConfiguration.CBOW;
 
         // setting training threads
-        if(threads > 0){
-            configuration.setNumberOfThreads(threads);
-        }
+        if(threads > 0) configuration.setNumberOfThreads(threads);
+
+        // setting dimensions
+        if(dimensions > 0) configuration.setVectorDimension(dimensions);
 
 
 
@@ -109,6 +139,12 @@ public class Main {
 
             // setting threads
             if(threads > 0) rdf2VecLight.setNumberOfThreads(threads);
+
+            // setting depth
+            if(depth > 0) rdf2VecLight.setDepth(depth);
+
+            // setting the number of walks
+            if(numberOfWalks > 0) rdf2VecLight.setNumberOfWalksPerEntity(numberOfWalks);
 
             rdf2VecLight.setConfiguration(configuration);
             rdf2VecLight.train();
