@@ -75,8 +75,8 @@ public class Gensim {
 
     
     /**
-     * Method to train a vector space model. The file for the training (i.e., csv file where first column is id and second colum text) has to
-     * exist already.
+     * Method to train a vector space model. The file for the training (i.e., csv file where first column is id and
+     * second column text) has to exist already.
      * @param modelPath identifier for the model (used for querying a specific model
      * @param trainingFilePath The file path to the file that shall be used for training.
      */
@@ -202,6 +202,48 @@ public class Gensim {
         // failure case
         return -1.0;
     }
+
+
+    /**
+     * Writes the vectors to a human-readable text file.
+     * @param modelOrVectorPath The path to the model or vector file. Note that the vector file MUST end with .kv in
+     *      *                          order to be recognized as vector file.
+     * @param fileToWrite The file that will be written.
+     */
+    public void writeModelAsTextFile(String modelOrVectorPath, String fileToWrite){
+        writeModelAsTextFile(modelOrVectorPath, fileToWrite, null);
+    }
+
+    /**
+     * Writes the vectors to a human-readable text file.
+     * @param modelOrVectorPath The path to the model or vector file. Note that the vector file MUST end with .kv in
+     *      *                          order to be recognized as vector file.
+     * @param fileToWrite The file that will be written.
+     * @param entityFile The vocabulary that shall appear in the text file (can be null if all words shall be written).
+     *                   The file must contain one word per line. The contents must be a subset of the vocabulary.
+     */
+    public void writeModelAsTextFile(String modelOrVectorPath, String fileToWrite, String entityFile){
+        HttpGet request = new HttpGet(serverUrl + "/write-model-as-text-file");
+        addModelToRequest(request, modelOrVectorPath);
+        if(entityFile != null) {
+            request.addHeader("entity_file", entityFile);
+        }
+        request.addHeader("file_to_write", fileToWrite);
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            HttpEntity entity = response.getEntity();
+            if (entity == null) {
+                LOGGER.error("No server response.");
+            } else {
+                String resultString = EntityUtils.toString(entity);
+                if (resultString.startsWith("ERROR") || resultString.contains("500 Internal Server Error")) {
+                    LOGGER.error(resultString);
+                }
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Problem with http request.", ioe);
+        }
+    }
+
 
     /**
      * Returns the vector of a concept.

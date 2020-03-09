@@ -99,6 +99,7 @@ public enum Word2VecConfiguration {
         this.vectorDimension = vectorDimension;
     }
 
+
     @Override
     public String toString(){
         switch (this){
