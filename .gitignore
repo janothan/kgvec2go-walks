@@ -78,3 +78,6 @@ bin/
 
 # mac
 .DS_Store
+
+# exceptions
+!/python_server/requirements.txt
