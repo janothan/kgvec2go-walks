@@ -7,11 +7,11 @@ import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.rdfhdt.hdt.dictionary.impl.BaseDictionary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +42,7 @@ public class Gensim {
      * Constructor
      */
     private Gensim() {
-        startServer();
+        // do nothing; do not start the server (yet)
     }
 
     /**
@@ -59,8 +59,9 @@ public class Gensim {
 
     /**
      * Indicates whether the server has been shut down.
+     * Initial state: shutDown.
      */
-    private static boolean isShutDown = false;
+    private static boolean isShutDown = true;
 
     /**
      * Local vector cache.
@@ -73,10 +74,15 @@ public class Gensim {
      */
     private boolean isHookStarted = false;
 
-    
     /**
-     * Method to train a vector space model. The file for the training (i.e., csv file where first column is id and
-     * second column text) has to exist already.
+     * The directory where the python files will be copied to.
+     */
+    private File resourcesDirectory = new File("./melt-resources/");
+
+
+    /**
+     * Method to train a vector space model. The file for the training (i.e., csv file where first column is id and second colum text) has to
+     * exist already.
      * @param modelPath identifier for the model (used for querying a specific model
      * @param trainingFilePath The file path to the file that shall be used for training.
      */
@@ -91,18 +97,21 @@ public class Gensim {
             LOGGER.error("Problem with http request.", ioe);
         }
     }
-    
+
+
     /**
      * Method to train a vector space model. The file for the training (i.e., csv file where first column is id and second colum text) has to
      * exist already.
      * @param modelPath identifier for the model (used for querying a specific model
      * @param documentIdOne Document id for the first document
      * @param documentIdTwo Document id for the second document
+     * @return The cosine similarity in the vector space between the two documents.
+     * @throws Exception Thrown if there are server problems.
      */
     public double queryVectorSpaceModel(String modelPath, String documentIdOne, String documentIdTwo) throws Exception{
         HttpGet request = new HttpGet(serverUrl + "/query-vector-space-model");
         request.addHeader("model_path", modelPath);
-        request.addHeader("document_id_one", documentIdOne);        
+        request.addHeader("document_id_one", documentIdOne);
         request.addHeader("document_id_two", documentIdTwo);
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -203,52 +212,11 @@ public class Gensim {
         return -1.0;
     }
 
-
-    /**
-     * Writes the vectors to a human-readable text file.
-     * @param modelOrVectorPath The path to the model or vector file. Note that the vector file MUST end with .kv in
-     *      *                          order to be recognized as vector file.
-     * @param fileToWrite The file that will be written.
-     */
-    public void writeModelAsTextFile(String modelOrVectorPath, String fileToWrite){
-        writeModelAsTextFile(modelOrVectorPath, fileToWrite, null);
-    }
-
-    /**
-     * Writes the vectors to a human-readable text file.
-     * @param modelOrVectorPath The path to the model or vector file. Note that the vector file MUST end with .kv in
-     *      *                          order to be recognized as vector file.
-     * @param fileToWrite The file that will be written.
-     * @param entityFile The vocabulary that shall appear in the text file (can be null if all words shall be written).
-     *                   The file must contain one word per line. The contents must be a subset of the vocabulary.
-     */
-    public void writeModelAsTextFile(String modelOrVectorPath, String fileToWrite, String entityFile){
-        HttpGet request = new HttpGet(serverUrl + "/write-model-as-text-file");
-        addModelToRequest(request, modelOrVectorPath);
-        if(entityFile != null) {
-            request.addHeader("entity_file", entityFile);
-        }
-        request.addHeader("file_to_write", fileToWrite);
-        try (CloseableHttpResponse response = httpClient.execute(request)) {
-            HttpEntity entity = response.getEntity();
-            if (entity == null) {
-                LOGGER.error("No server response.");
-            } else {
-                String resultString = EntityUtils.toString(entity);
-                if (resultString.startsWith("ERROR") || resultString.contains("500 Internal Server Error")) {
-                    LOGGER.error(resultString);
-                }
-            }
-        } catch (IOException ioe) {
-            LOGGER.error("Problem with http request.", ioe);
-        }
-    }
-
-
     /**
      * Returns the vector of a concept.
      *
      * @param concept The concept for which the vector shall be obtained.
+     * @param modelOrVectorPath The model path or vector file path leading to the file to be used.
      * @return The vector for the specified concept.
      */
     public Double[] getVector(String concept, String modelOrVectorPath) {
@@ -408,6 +376,19 @@ public class Gensim {
     }
 
     /**
+     * Get the instance (singleton pattern).
+     * @param resourcesDirectory Directory where the files shall be copied to.
+     * @return Gensim Instance
+     */
+    public static Gensim getInstance(File resourcesDirectory){
+        if (instance == null) instance = new Gensim();
+        instance.setResourcesDirectory(resourcesDirectory);
+        if (isShutDown) instance.startServer();
+        return instance;
+    }
+
+
+    /**
      * Shut down the service.
      */
     public void shutDown() {
@@ -433,22 +414,55 @@ public class Gensim {
      */
     private Process serverProcess;
 
+
+    /**
+     * Export a resource embedded into a Jar file to the local file path.
+     *
+     * @param resourceName ie.: "/SmartLibrary.dll"
+     */
+    private void exportResource(File baseDirectory, String resourceName) {
+        try (InputStream stream = this.getClass().getResourceAsStream("/" + resourceName)){
+            if(stream == null) {
+                throw new Exception("Cannot get resource \"" + resourceName + "\" from Jar file.");
+            }
+            int readBytes;
+            byte[] buffer = new byte[4096];
+            try (OutputStream resStreamOut = new FileOutputStream(new File(baseDirectory,resourceName))){
+                while ((readBytes = stream.read(buffer)) > 0) {
+                    resStreamOut.write(buffer, 0, readBytes);
+                }
+            }
+        } catch (Exception ex) {
+            LOGGER.error("Could not read/write resource file: " + resourceName + " (base directory: "
+                    + baseDirectory.getAbsolutePath() + ")", ex);
+        }
+    }
+
+
     /**
      * Initializes the server.
      */
     private void startServer() {
+
+        File meltResourceDirectory = this.resourcesDirectory;
+        meltResourceDirectory.mkdirs();
+
+        exportResource(meltResourceDirectory, "python_server.py");
+        exportResource(meltResourceDirectory, "requirements.txt");
+
         httpClient = HttpClients.createDefault(); // has to be re-instantiated
         String canonicalPath;
-        File serverFile = new File("python_server/python_server.py");
+        File serverFile = new File(meltResourceDirectory, "python_server.py");
         try {
             if (!serverFile.exists()) {
-                LOGGER.error("Server File does not exist. Cannot start server. ABORTING. Please place `python_server.py`" +
-                        "in directory /python_server/`.");
+                LOGGER.error("Server File does not exist. Cannot start server. ABORTING. Please make sure that " +
+                        "the 'python_server.py' file is placed in directory '/melt-resources/'.");
                 return;
             }
             canonicalPath = serverFile.getCanonicalPath();
         } catch (IOException e) {
-            LOGGER.error("Server File does not exist. Cannot start server. ABORTING.", e);
+            LOGGER.error("Server File ('melt-resources/python_server.py') does not exist. " +
+                    "Cannot start server. ABORTING.", e);
             return;
         }
         String pythonCommand = getPythonCommand();
@@ -495,21 +509,22 @@ public class Gensim {
             isHookStarted = true;
         }
     }
-    
+
     /**
-     * Returns the python command which is extracted from {@code file python_server/python_command.txt}.
+     * Returns the python command which is extracted from {@code file melt-resources/python_command.txt}.
      * @return The python executable path.
      */
     protected String getPythonCommand(){
         String pythonCommand = "python";
-        Path filePath = Paths.get("python_server", "python_command.txt");
+        Path filePath = Paths.get(this.getResourcesDirectoryPath(), "python_command.txt");
         if(Files.exists(filePath)){
+            LOGGER.info("Python command file detected.");
             try {
                 String fileContent = new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8);
                 fileContent = fileContent.replace("\r", "").replace("\n", "")
-                    .replace("{File.pathSeparator}", File.pathSeparator)
-                    .replace("{File.separator}", File.separator)
-                    .trim();
+                        .replace("{File.pathSeparator}", File.pathSeparator)
+                        .replace("{File.separator}", File.separator)
+                        .trim();
                 return fileContent;
             } catch (IOException ex) {
                 LOGGER.warn("The file which should contain the python command could not be read.", ex);
@@ -517,7 +532,7 @@ public class Gensim {
         }
         return pythonCommand;
     }
-    
+
     /**
      * Updates the environment variable PATH with additional python needed directories like env/lib/bin
      * @param environment The environment to be changed.
@@ -530,10 +545,10 @@ public class Gensim {
             if(path.endsWith(File.pathSeparator) == false)
                 path += File.pathSeparator;
             path += additionalPaths;
-        }        
+        }
         environment.put("PATH",  path);
     }
-    
+
     /**
      * Returns a concatenated path of directories which can be used in the PATH variable.
      * It searches based on a python executable path, all bin directories within the python dir.
@@ -555,7 +570,7 @@ public class Gensim {
             return "";
         }
     }
-    
+
     /**
      * Calculate The cosine similarity between two vectors.
      *
@@ -575,7 +590,79 @@ public class Gensim {
         return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
     }
 
+    /**
+     * Writes the vectors to a human-readable text file.
+     * @param modelOrVectorPath The path to the model or vector file. Note that the vector file MUST end with .kv in
+     *      *                          order to be recognized as vector file.
+     * @param fileToWrite The file that will be written.
+     */
+    public void writeModelAsTextFile(String modelOrVectorPath, String fileToWrite){
+        writeModelAsTextFile(modelOrVectorPath, fileToWrite, null);
+    }
 
+    /**
+     * Writes the vectors to a human-readable text file.
+     * @param modelOrVectorPath The path to the model or vector file. Note that the vector file MUST end with .kv in
+     *      *                          order to be recognized as vector file.
+     * @param fileToWrite The file that will be written.
+     * @param entityFile The vocabulary that shall appear in the text file (can be null if all words shall be written).
+     *                   The file must contain one word per line. The contents must be a subset of the vocabulary.
+     */
+    public void writeModelAsTextFile(String modelOrVectorPath, String fileToWrite, String entityFile){
+        HttpGet request = new HttpGet(serverUrl + "/write-model-as-text-file");
+        addModelToRequest(request, modelOrVectorPath);
+        if(entityFile != null) {
+            request.addHeader("entity_file", entityFile);
+        }
+        request.addHeader("file_to_write", fileToWrite);
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            HttpEntity entity = response.getEntity();
+            if (entity == null) {
+                LOGGER.error("No server response.");
+            } else {
+                String resultString = EntityUtils.toString(entity);
+                if (resultString.startsWith("ERROR") || resultString.contains("500 Internal Server Error")) {
+                    LOGGER.error(resultString);
+                }
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Problem with http request.", ioe);
+        }
+    }
+
+    public File getResourcesDirectory() {
+        return resourcesDirectory;
+    }
+
+    /**
+     * Get the resource directory as String.
+     * @return Directory as String.
+     */
+    public String getResourcesDirectoryPath() {
+        try {
+            return this.resourcesDirectory.getCanonicalPath();
+        } catch (IOException ioe){
+            LOGGER.error("Could not determine canonical path for resources directory. Returning default.");
+            return "./melt-resources/";
+        }
+    }
+
+    /**
+     * Set the directory where the python files will be copied to.
+     * @param resourcesDirectory Must be a directory.
+     */
+    public void setResourcesDirectory(File resourcesDirectory) {
+        if(!resourcesDirectory.isDirectory()){
+            LOGGER.error("The specified directory is no directory. Using default: './melt-resources/'");
+            resourcesDirectory = new File("./melt-resources/");
+        }
+        this.resourcesDirectory = resourcesDirectory;
+    }
+
+    /**
+     * If true: enabled. Else: false.
+     * @return True if enabled, else false.
+     */
     public boolean isVectorCaching() {
         return isVectorCaching;
     }

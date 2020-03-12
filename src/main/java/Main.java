@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import training.Word2VecConfiguration;
 
 import java.io.File;
+import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Mini command line tool for server application.
@@ -50,6 +52,11 @@ public class Main {
      * The number of walks to be generated for each node.
      */
     private static int numberOfWalks = -1;
+
+    /**
+     * The file to which the python resources shall be copied.
+     */
+    private static File resourcesDirectory;
 
     /**
      * Where the walks will be persisted (directory).
@@ -126,6 +133,16 @@ public class Main {
             }
         }
 
+        String resourcesDirectroyPath = getValue("-serverResourcesDir", args);
+        if(resourcesDirectroyPath != null){
+            File f = new File(resourcesDirectroyPath);
+            if(f.isDirectory()){
+                resourcesDirectory = f;
+            } else {
+                System.out.println("The specified directory for the python resources is not a directory. Using default.");
+            }
+        }
+
         // determining the configuration for the rdf2vec training
         String trainingModeText = getValue("-trainingMode", args);
         trainingModeText = (trainingModeText == null) ? getValue("-trainMode", args) : trainingModeText;
@@ -162,9 +179,22 @@ public class Main {
             // setting the number of walks
             if(numberOfWalks > 0) rdf2VecLight.setNumberOfWalksPerEntity(numberOfWalks);
 
+            // set resource directory
+            if(resourcesDirectory != null) rdf2VecLight.setResourceDirectory(resourcesDirectory);
+
             rdf2VecLight.setConfiguration(configuration);
+            Instant before = Instant.now();
             rdf2VecLight.train();
+            Instant after = Instant.now();
+            long days = Duration.between(before, after).toDaysPart();
+            long hours = Duration.between(before, after).toHoursPart();
+            long minutesPart = Duration.between(before, after).toMinutesPart();
+            long seconds = Duration.between(before, after).toSecondsPart();
             System.out.println("Training completed.");
+            System.out.println("Days: " + days);
+            System.out.println("Hours: " + hours);
+            System.out.println("Minutes: " + minutesPart);
+            System.out.println("Seconds: " + seconds);
         }
     }
 

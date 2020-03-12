@@ -161,24 +161,6 @@ class GensimTest {
         assertEquals(100, europeVector.length);
     }
 
-
-    @Test
-    void trainWord2VecModel() {
-        String testFilePath = getClass().getClassLoader().getResource("testInputForWord2Vec.txt").getPath();
-        String fileToWrite = "./freudeWord2vec.kv";
-        assertTrue(gensim.trainWord2VecModel(fileToWrite, testFilePath, Word2VecConfiguration.CBOW));
-
-        File vectorFile = new File(fileToWrite);
-        File modelFile = new File(fileToWrite.substring(0, fileToWrite.length() - 3));
-        assertTrue(vectorFile.exists(), "No vector file was written.");
-        assertTrue(modelFile.exists(), "No model file was written.");
-        assertTrue(gensim.getSimilarity("Menschen", "Brüder", fileToWrite) > 0);
-
-        // cleaning up
-        modelFile.delete();
-        vectorFile.delete();
-    }
-
     @Test
     void writeModelAsTextFile() {
         // "normal" training task
@@ -229,6 +211,24 @@ class GensimTest {
             ioe.printStackTrace();
         }
         return linesRead;
+    }
+
+
+    @Test
+    void trainWord2VecModel() {
+        String testFilePath = getClass().getClassLoader().getResource("testInputForWord2Vec.txt").getPath();
+        String fileToWrite = "./freudeWord2vec.kv";
+        assertTrue(gensim.trainWord2VecModel(fileToWrite, testFilePath, Word2VecConfiguration.CBOW));
+
+        File vectorFile = new File(fileToWrite);
+        File modelFile = new File(fileToWrite.substring(0, fileToWrite.length() - 3));
+        assertTrue(vectorFile.exists(), "No vector file was written.");
+        assertTrue(modelFile.exists(), "No model file was written.");
+        assertTrue(gensim.getSimilarity("Menschen", "Brüder", fileToWrite) > 0);
+
+        // cleaning up
+        modelFile.delete();
+        vectorFile.delete();
     }
 
 }
